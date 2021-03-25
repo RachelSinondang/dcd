@@ -1,0 +1,489 @@
+---
+title: "DCD"
+author: "Rachel Sinondang"
+date: "3/20/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Halcyon
+- meningkatkan businesss
+- belajar dari cofee lain
+
+
+```{r message=FALSE, warning=FALSE}
+ # Data Wrangling
+library(tidyverse) 
+
+# Text analysis
+library(textclean)
+library(tidytext)
+library(tm)
+
+library(caret)
+library(e1071)
+library(rpart)
+library(RTextTools)
+library(tm)
+library(DMwR)
+library(plotly)
+```
+
+
+```{r}
+yelp_shop <- read.csv("sentiments_by_shop.csv")
+
+yelp_shop <- yelp_shop[order(yelp_shop$rating, decreasing = T),]
+```
+
+```{r}
+plot_best <- ggplot(data = yelp_shop[1:5,],aes(x = rating,y = reorder(coffee_shop_name, rating),text = glue(
+                         "rating: {rating}"))) +
+  geom_col(aes(fill = rating)) +
+  scale_fill_gradient(low = "#0000FF", high = "#000080") + 
+    labs(y= "Coffee Shop Name", x="Rating", 
+         title= "Coffee Shop dengan Rating Tertinggi", 
+         caption = "Source: Kaggle")
+
+ggplotly(plot_best, tooltip = "text")
+```
+
+
+```{r}
+plot_worst <- ggplot(data = tail(yelp_shop,5),aes(x = rating,y = reorder(coffee_shop_name, rating),text = glue(
+                         "rating: {rating}"))) +
+  geom_col(aes(fill = rating)) +
+  scale_fill_gradient(low = "#FF3333", high = "#660000") + 
+    labs(y= "Coffee Shop Name", x="Rating", 
+         title= "Coffee Shop dengan Rating terendah", 
+         caption = "Source: Kaggle")
+
+ggplotly(plot_worst, tooltip = "text")
+```
+
+```{r}
+library(GGally)
+ggcorr(yelp_shop,label = T)
+```
+
+```{r}
+yelp_pivot <- yelp_shop %>%
+  select(-c(num_reviews,rating)) %>%
+  pivot_longer(!coffee_shop_name, names_to = "parameter", values_to = "value") %>%
+  mutate(coffee_shop_name = as.factor(coffee_shop_name))
+
+
+```
+
+```{r}
+library(plotly)
+plot_pivot <- ggplot(data = yelp_pivot %>% filter(coffee_shop_name == "Epoch Coffee ") ,mapping = aes(x = value, y = parameter, text = glue(
+                         "nilai: {value}"))) +
+  geom_col(aes(fill = value))
+
+ggplotly(plot_pivot, tooltip = "text")
+```
+
+
+```{r}
+yelp_sent <- read.csv("ratings_and_sentiments.csv")
+```
+
+```{r}
+yelp_sent <- yelp_sent %>% 
+  filter(food_sent != "#VALUE!" ,
+           coffee_sent != "#VALUE!",
+           vibe_sent != "#VALUE!" ,
+           parking_sent != "#VALUE!") %>%
+  select(-c(rating, cat_rating, bool_HIGH)) %>%
+  drop_na()
+```
+
+```{r}
+yelp_sent$overall_sent <- if_else(condition = yelp_sent$overall_sent < 0,true = "negative",
+        false = if_else(condition = yelp_sent$overall_sent > 1,
+                        true = "positive",false = "neutral"))
+
+yelp_sent$vibe_sent <-if_else(condition = yelp_sent$vibe_sent < 0,true = "negative",
+        false = if_else(condition = yelp_sent$vibe_sent > 1,
+                        true = "positive",false = "neutral"))
+
+yelp_sent$tea_sent <-if_else(condition = yelp_sent$tea_sent < 0,true = "negative",
+        false = if_else(condition = yelp_sent$tea_sent > 1,
+                        true = "positive",false = "neutral"))
+
+yelp_sent$service_sent <-if_else(condition = yelp_sent$service_sent < 0,true = "negative",
+        false = if_else(condition = yelp_sent$service_sent > 1,
+                        true = "positive",false = "neutral"))
+
+yelp_sent$price_sent <-if_else(condition = yelp_sent$price_sent < 0,true = "negative",
+        false = if_else(condition = yelp_sent$price_sent > 1,
+                        true = "positive",false = "neutral"))
+
+yelp_sent$service_sent <-if_else(condition = yelp_sent$service_sent < 0,true = "negative",
+        false = if_else(condition = yelp_sent$service_sent > 1,
+                        true = "positive",false = "neutral"))
+
+yelp_sent$seating_sent <-if_else(condition = yelp_sent$seating_sent < 0,true = "negative",
+        false = if_else(condition = yelp_sent$seating_sent > 1,
+                        true = "positive",false = "neutral"))
+
+yelp_sent$parking_sent <-if_else(condition = yelp_sent$parking_sent < 0,true = "negative",
+        false = if_else(condition = yelp_sent$parking_sent > 1,
+                        true = "positive",false = "neutral"))
+
+yelp_sent$location_sent <-if_else(condition = yelp_sent$location_sent < 0,true = "negative",
+        false = if_else(condition = yelp_sent$location_sent > 1,
+                        true = "positive",false = "neutral"))
+
+yelp_sent$alcohol_sent <-if_else(condition = yelp_sent$alcohol_sent < 0,true = "negative",
+        false = if_else(condition = yelp_sent$alcohol_sent > 1,
+                        true = "positive",false = "neutral"))
+
+yelp_sent$coffee_sent <-if_else(condition = yelp_sent$coffee_sent < 0,true = "negative",
+        false = if_else(condition = yelp_sent$coffee_sent > 1,
+                        true = "positive",false = "neutral"))
+
+yelp_sent$food_sent <-if_else(condition = yelp_sent$food_sent < 0,true = "negative",
+        false = if_else(condition = yelp_sent$food_sent > 1,
+                        true = "positive",false = "neutral"))
+
+yelp_sent$hours_sent <-if_else(condition = yelp_sent$hours_sent < 0,true = "negative",
+        false = if_else(condition = yelp_sent$hours_sent > 1,
+                        true = "positive",false = "neutral"))
+
+yelp_sent$internet_sent <-if_else(condition = yelp_sent$internet_sent < 0,true = "negative",
+        false = if_else(condition = yelp_sent$internet_sent > 1,
+                        true = "positive",false = "neutral"))
+
+yelp_sent$local_sent <-if_else(condition = yelp_sent$local_sent < 0,true = "negative",
+        false = if_else(condition = yelp_sent$local_sent > 1,
+                        true = "positive",false = "neutral"))
+```
+
+```{r}
+yelp_clean <- yelp_sent %>%
+  mutate(coffee_shop_name = as.factor(coffee_shop_name),
+         num_rating = as.factor(num_rating),
+         overall_sent = as.factor(overall_sent),
+         vibe_sent = as.factor(vibe_sent),
+         tea_sent = as.factor(tea_sent),
+         service_sent = as.factor(service_sent),
+         seating_sent = as.factor(seating_sent),
+         price_sent = as.factor(price_sent),
+         parking_sent = as.factor(parking_sent),
+         location_sent = as.factor(location_sent),
+         alcohol_sent = as.factor(alcohol_sent),
+         coffee_sent = as.factor(coffee_sent),
+         food_sent = as.factor(food_sent),
+         hours_sent = as.factor(hours_sent),
+         internet_sent = as.factor(internet_sent),
+         local_sent = as.factor(local_sent))
+```
+
+```{r}
+epoch <- yelp_clean %>% filter(coffee_shop_name == "Epoch Coffee ")
+```
+
+```{r }
+RNGkind(sample.kind = "Rounding")
+set.seed(100)
+
+index <- sample(nrow(epoch), nrow(epoch)*0.8)
+
+epoch_train <- epoch[index, ]
+test <- epoch[-index, ]
+```
+
+```{r}
+test.review <- test %>% select(review_text)
+
+# save data
+# write.csv(test.review, "epoch_test.csv", row.names = F)
+```
+
+```{r}
+epoch.clean <- epoch_train %>%
+  mutate(review_text = review_text %>%
+      str_to_lower() %>% # transform menjadi huruf kecil
+      replace_url()  %>% 
+      replace_html() %>% 
+      replace_contraction() %>%
+      replace_word_elongation() %>% 
+      replace_internet_slang() %>% 
+      replace_emoji(.) %>% 
+      replace_emoticon(.) %>% 
+      str_remove_all(pattern = "[[:digit:]]") %>% # remove number
+      str_remove_all(pattern = "[[:punct:]]") %>% 
+      str_remove_all(pattern = "%") %>%
+      str_remove_all(pattern = "\\$") %>% # remove dollar sign
+      str_remove_all(pattern = "\\|") %>%
+      str_remove_all(pattern = "\\=") %>%
+      str_remove_all('[\\&]+') %>% 
+      str_remove_all('[\\"]+') %>% 
+      str_remove_all(pattern = "\\+") %>%
+      str_remove_all(pattern = "\\>") %>%
+      str_remove_all(pattern = "\\<") %>%
+      str_squish()
+  )
+```
+
+service tidak usah
+
+### Text to Corpus
+
+Salah satu package yang bisa digunakan untuk text mining adalah `tm`. Kita akan ubah data teks menjadi corpus dengan function `VCorpus()`.
+
+```{r message=F}
+library(tm)
+
+# VCorpus requires a source object, which can be created using VectorSource
+epoch.corpus <- VCorpus(VectorSource(epoch.clean$review_text))
+
+```
+
+```{r}
+# stemming
+epoch.corpus <- tm_map(epoch.corpus, content_transformer(textstem::lemmatize_words))
+
+epoch.siap <- bind_cols(epoch.corpus %>% sapply(as.character) %>%
+  as.data.frame(stringsAsFactors = FALSE), epoch_train[,4:17]) %>%
+  `colnames<-`(c("review", "overall_sent", "vibe_sent", "tea_sent", "service_sent","seating_sent", "price_sent", "parking_sent", "location_sent", "alcohol_sent", "coffee_sent", "food_sent", "hours_sent", "internet_sent", "local_sent"))
+```
+
+```{r }
+library(rsample)
+RNGkind(sample.kind = "Rounding")
+set.seed(100)
+
+split_a <- initial_split(epoch.siap, prop =  0.6, strata = "overall_sent")
+data_train <- training(split_a)
+data_test <- testing(split_a)
+
+prop.table(table(data_train$overall_sent))
+```
+
+```{r}
+library(caret)
+
+data_up_train <- upSample(x = data_train %>% select(-overall_sent), 
+                         y = as.factor(data_train[,"overall_sent"]), 
+                         yname = "overall_sent") 
+
+table(data_up_train$overall_sent)
+```
+
+
+### Document-Term Matrix (DTM)
+```{r }
+epoch.train.dtm <- DocumentTermMatrix(VCorpus(VectorSource(data_up_train$review)))
+
+epoch.test.dtm <- DocumentTermMatrix(VCorpus(VectorSource(data_test$review)))
+
+# cek data
+inspect(epoch.train.dtm)
+```
+
+
+```{r }
+epoch.train.dtm <- removeSparseTerms(epoch.train.dtm, 0.995)
+
+```
+
+```{r}
+# fungsi DIY
+bernoulli_conv <- function(x){
+  x <- as.factor(ifelse(x > 0, 1, 0))
+  return(x)
+}
+
+```
+
+```{r}
+data_train_bn <- apply(X = epoch.train.dtm, MARGIN = 2, FUN = bernoulli_conv)
+data_test_bn <- apply(X = epoch.test.dtm, MARGIN = 2, FUN = bernoulli_conv)
+```
+
+```{r}
+library(e1071)
+# your code
+model_naive <- naiveBayes(x = data_train_bn, # data prediktor
+                          y = data_up_train[,"overall_sent"], # data target
+                          laplace = 1)
+
+
+```
+
+```{r}
+# your code
+epoch_predClass <- predict(object = model_naive, 
+                         newdata = data_test_bn,
+                         type = "class")
+
+head(epoch_predClass)
+```
+
+```{r}
+# your code
+library(caret)
+confusionMatrix(data = epoch_predClass, # hasil prediksi
+                reference = data_test$overall_sent)
+```
+
+```{r}
+prediksi <- data.frame(epoch_predClass) %>% `colnames<-`("predict")
+
+freq_pred <- prediksi %>% group_by(predict) %>% summarise(total = n())
+```
+
+```{r}
+plot_sentiment <- ggplot(data = freq_pred ,mapping = aes(x = predict, y = total, text = glue(
+                         "jumlah: {total}"))) +
+  geom_col(aes(fill = predict))
+
+ggplotly(plot_sentiment, tooltip = "text")
+```
+
+```{r}
+test_predict <- data.frame("review" = data_test %>% select(review), "predict" = epoch_predClass)
+```
+
+```{r}
+bb <- test_predict %>% 
+  unnest_tokens(word, review)%>%
+  mutate(word = textstem::lemmatize_words(word)) %>%
+  anti_join(stop_words) %>% 
+  count(word, predict, sort = T) %>% 
+  group_by(predict) %>% 
+  top_n(10)
+
+plot_pred <- ggplot(data = bb ,mapping = aes(x = n, y = word, text = glue(
+                         "jumlah: {n}"))) +
+  geom_col(aes(fill = predict))
+ggplotly(plot_pred, tooltip = "text")
+
+```
+
+
+
+```{r}
+# clean <- yelp_clean %>%
+#   mutate(review_text = review_text %>%
+#       str_to_lower() %>% # transform menjadi huruf kecil
+#       replace_url()  %>% 
+#       replace_html() %>% 
+#       replace_contraction() %>%
+#       replace_word_elongation() %>% 
+#       replace_internet_slang() %>% 
+#       replace_emoji(.) %>% 
+#       replace_emoticon(.) %>% 
+#       str_remove_all(pattern = "[[:digit:]]") %>% # remove number
+#       str_remove_all(pattern = "[[:punct:]]") %>% 
+#       str_remove_all(pattern = "%") %>%
+#       str_remove_all(pattern = "\\$") %>% # remove dollar sign
+#       str_remove_all(pattern = "\\|") %>%
+#       str_remove_all(pattern = "\\=") %>%
+#       str_remove_all('[\\&]+') %>% 
+#       str_remove_all('[\\"]+') %>% 
+#       str_remove_all(pattern = "\\+") %>%
+#       str_remove_all(pattern = "\\>") %>%
+#       str_remove_all(pattern = "\\<") %>%
+#       str_squish()
+#   )
+```
+
+```{r}
+#write.csv(clean, "yelp_clean.csv", row.names = F)
+
+clean <- read.csv("yelp_clean.csv")
+
+clean2 <- clean %>%
+  mutate(coffee_shop_name = as.factor(coffee_shop_name),
+         num_rating = as.factor(num_rating),
+         overall_sent = as.factor(overall_sent),
+         vibe_sent = as.factor(vibe_sent),
+         tea_sent = as.factor(tea_sent),
+         service_sent = as.factor(service_sent),
+         seating_sent = as.factor(seating_sent),
+         price_sent = as.factor(price_sent),
+         parking_sent = as.factor(parking_sent),
+         location_sent = as.factor(location_sent),
+         alcohol_sent = as.factor(alcohol_sent),
+         coffee_sent = as.factor(coffee_sent),
+         food_sent = as.factor(food_sent),
+         hours_sent = as.factor(hours_sent),
+         internet_sent = as.factor(internet_sent),
+         local_sent = as.factor(local_sent))
+```
+
+```{r}
+clean_3 <- clean2 %>%
+  select(-num_rating) %>%
+  pivot_longer(!c(review_text,	coffee_shop_name), names_to = "parameter", values_to = "value") %>%
+  mutate(parameter = as.factor(parameter))
+```
+
+```{r}
+aa <- clean_3 %>% 
+  filter(coffee_shop_name == "The Factory - Cafe With a Soul ", 
+         parameter == "overall_sent") %>%
+  unnest_tokens(word, review_text)%>%
+  mutate(word = textstem::lemmatize_words(word)) %>%
+  anti_join(stop_words) %>% 
+  count(word, value, sort = T) %>% 
+  group_by(value) %>% 
+  top_n(10)
+
+plot_word <- ggplot(data = aa ,mapping = aes(x = n, y = word, text = glue(
+                         "jumlah: {n}"))) +
+  geom_col(aes(fill = value))
+ggplotly(plot_word, tooltip = "text")
+
+
+ggplot(aa, aes(label = word)) +
+  ggwordcloud::geom_text_wordcloud(aes(size=n, color = value)) +
+  facet_wrap(~value, scales = "free_y") +
+  scale_size_area(max_size = 12) +
+  labs(title = "Sentiment's Wordcloud") +
+  theme_minimal()
+```
+
+
+```{r message =FALSE, warning=FALSE}
+yelp_aa <- clean %>% 
+  filter(coffee_shop_name == "The Factory - Cafe With a Soul ") %>%
+  unnest_tokens(word, review_text)%>%
+  mutate(word = textstem::lemmatize_words(word)) %>%
+  anti_join(stop_words) %>% 
+  count(word, overall_sent, sort = T) %>% 
+  group_by(overall_sent) %>% 
+  top_n(15)
+
+
+
+ggplot(yelp_aa, aes(label = word)) +
+  ggwordcloud::geom_text_wordcloud(aes(size=n, color = overall_sent)) +
+  facet_wrap(~overall_sent, scales = "free_y") +
+  scale_size_area(max_size = 12) +
+  labs(title = "Sentiment's Wordcloud") +
+  theme_minimal()
+
+```
+
+```{r}
+yelp_data <- yelp_shop %>% arrange(desc(coffee)) %>% select(c(coffee_shop_name,coffee)) %>% head(10)
+
+plot_rate <- ggplot(data = yelp_data ,mapping = aes(x = coffee, y = reorder(coffee_shop_name,coffee), text = glue(
+                         "rate: {coffee}"))) +
+  geom_col(aes(fill = coffee))
+
+ggplotly(plot_rate, tooltip = "text")
+```
+
+```{r}
+
+```
+
